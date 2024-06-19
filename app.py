@@ -50,7 +50,7 @@ def process_data(stocks, bentch='^CNX100'):
 
     stocks = stocks.dropna(subset=['RS'])
     return stocks
-    # stocks.to_csv('rmsm.csv')
+    # stocks.to_csv('rmsm.csv')....... test
 
 
 if __name__ == '__main__':
