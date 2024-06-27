@@ -1,6 +1,6 @@
 import pandas as pd
 import yfinance as yf
-
+import time
 
 def normalized_mean(df, on='Close'):
     nz = (df[on] - df[on].mean()) / df[on].std()
@@ -27,8 +27,13 @@ def get_rs(df, bench):
 
 def get_nifty_data(stocks):
     for i in stocks['symbol']:
-        df = yf.download(f'{i}.NS', period='1mo')
-        df.to_csv(f"tickers/data/{i}.csv")
+        try:
+            df = yf.download(f'{i}.NS', period='1mo')
+            df.to_csv(f"tickers/data/{i}.csv")
+        except:
+            time.sleep(1)
+            df = yf.download(f'{i}.NS', period='1mo')
+            df.to_csv(f"tickers/data/{i}.csv")
 
 
 def process_data(stocks, bentch='^CNX100'):
@@ -47,10 +52,10 @@ def process_data(stocks, bentch='^CNX100'):
             # df.to_csv(f"tickers/data/{i}.csv")
         except:
             no_data_count += 1
-
+    print(f"**** no data {no_data_count} ***")
     stocks = stocks.dropna(subset=['RS'])
+    stocks.to_csv('rmsm.csv')
     return stocks
-    # stocks.to_csv('rmsm.csv')
 
 
 if __name__ == '__main__':
@@ -63,7 +68,7 @@ if __name__ == '__main__':
     }, inplace=True)
     stocks.drop(columns=['Unnamed: 4'], inplace=True)
 
-    # get_nifty_data(stocks)
+    get_nifty_data(stocks)
     stocks = process_data(stocks)
 
     df = stocks
