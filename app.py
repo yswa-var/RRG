@@ -1,95 +1,121 @@
-import pandas as pd
+import streamlit as st
 import yfinance as yf
-import time
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
-def normalized_mean(df, on='Close'):
-    nz = (df[on] - df[on].mean()) / df[on].std()
-    return nz
-
-
-def normalized_min_max(df, on='Close'):
-    nz = (df[on] - df[on].min()) / (df[on].max() - df.min())
-    return nz
+st.set_page_config(page_title="Dynamic RRG Graphs", layout="wide")
 
 
-def get_rs(df, bench):
-    df = df.copy()
-    bench = bench.copy()
-    df['Date'] = pd.to_datetime(df['Date'])
-    bench.index = pd.to_datetime(bench.index)
-    df['nz'] = normalized_mean(df)
-    bench['nz'] = normalized_mean(bench)
-    merged_df = pd.merge(df, bench, left_on='Date', right_index=True, suffixes=('_stk', '_bm'))
-    merged_df['RS'] = merged_df['nz_stk'] / merged_df['nz_bm']
-    merged_df['RSM'] = merged_df['RS'].pct_change(fill_method=None) * 100
-    return merged_df[['RS', 'RSM']][-1:].values
+@st.cache_data
+def download_data(tickers, start_date, end_date):
+    data = yf.download(tickers, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'))['Adj Close']
+    return data
 
 
-def get_nifty_data(stocks):
-    for i in stocks['symbol']:
-        df = yf.download(f'{i}.NS', period='1mo')
-        df.to_csv(f"tickers/data/{i}.csv")
+def calculate_rrg_components(data, benchmark):
+    rs_ratio = data.div(benchmark, axis=0) * 100
+
+    r12 = np.log(1 + data.pct_change(periods=252))
+    r1 = np.log(1 + data.pct_change(periods=21))
+    rs_momentum = r12 - r1
+
+    return rs_ratio, rs_momentum
 
 
-def process_data(stocks, bentch='^CNX100'):
-    bm = yf.download(bentch, period='1mo')
-    bm['nz'] = normalized_mean(bm)
-    no_data_count = 0
-    for i in stocks['symbol']:
-        try:
-            df = pd.read_csv(f'tickers/data/{i}.csv')
-            df['RS'] = 0.000
-            df['RSM'] = 0.000
-            df['nz'] = normalized_mean(df)
-            rs_rm = get_rs(df, bm)
-            stocks.loc[stocks['symbol'] == i, 'RS'] = rs_rm[0][0]
-            stocks.loc[stocks['symbol'] == i, 'RSM'] = rs_rm[0][1]
-            # df.to_csv(f"tickers/data/{i}.csv")
-        except:
-            no_data_count += 1
+def calculate_rrg_components_improved(data, benchmark, length=14):
+    rs = data.div(benchmark, axis=0)
 
-    stocks = stocks.dropna(subset=['RS'])
-    return stocks
-    # stocks.to_csv('rmsm.csv')
+    wma_rs = rs.rolling(window=length, center=False).apply(
+        lambda x: np.sum(x * np.arange(1, length + 1)) / np.sum(np.arange(1, length + 1)))
+
+    rs_ratio = (rs / wma_rs).rolling(window=length, center=False).apply(
+        lambda x: np.sum(x * np.arange(1, length + 1)) / np.sum(np.arange(1, length + 1))) * 100
+
+    rs_momentum = rs_ratio / rs_ratio.rolling(window=length, center=False).apply(
+        lambda x: np.sum(x * np.arange(1, length + 1)) / np.sum(np.arange(1, length + 1))) * 100
+    return rs_ratio, rs_momentum
 
 
-if __name__ == '__main__':
-    stocks = pd.read_csv('tickers/NSE.csv')
-    stocks.rename(columns={
-        '20MICRONS': 'symbol',
-        '20 MICRONS LTD': 'name',
-        'Mining': 'industry',
-        'Basic Materials': 'macro'
-    }, inplace=True)
-    stocks.drop(columns=['Unnamed: 4'], inplace=True)
+def normalize_data(data):
+    return (data - data.mean()) / data.std()
 
-    # get_nifty_data(stocks)
-    stocks = process_data(stocks)
 
-    df = stocks
-    avg_rs = df['RS'].mean()
-    avg_rsm = df['RSM'].mean()
+def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_length):
+    fig = go.Figure()
 
-    industry_groups = df.groupby('industry')
-    avg_rs_industry = industry_groups['RS'].mean()
-    avg_rsm_industry = industry_groups['RSM'].mean()
-    macro_groups = df.groupby('macro')
-    avg_rs_macro = macro_groups['RS'].mean()
-    avg_rsm_macro = macro_groups['RSM'].mean()
+    # Plot trail
+    fig.add_trace(go.Scatter(
+        x=normalized_rs_ratio.iloc[-trail_length * 5:],
+        y=normalized_rs_momentum.iloc[-trail_length * 5:],
+        mode='lines',
+        line=dict(width=1, color='rgb(247, 251, 255)')
+    ))
 
-    results_industry = pd.DataFrame({
-        'avg_RS': [avg_rs] + list(avg_rs_industry),
-        'avg_RSM': [avg_rsm] + list(avg_rsm_industry)
-    }, index=['Industry'] + list(avg_rs_industry.index))
+    # Plot current position
+    fig.add_trace(go.Scatter(
+        x=[normalized_rs_ratio.iloc[-1]],
+        y=[normalized_rs_momentum.iloc[-1]],
+        mode='markers+text',
+        marker=dict(size=10),
+        textposition="top center",
+        name=ticker
+    ))
 
-    results_macro = pd.DataFrame({
-        'avg_RS': [avg_rs] + list(avg_rs_macro),
-        'avg_RSM': [avg_rsm] + list(avg_rsm_macro)
-    }, index=['Macro'] + list(avg_rs_macro.index))
+    fig.add_shape(type="line", x0=0, y0=-10, x1=0, y1=10, line=dict(color="black", width=1))
+    fig.add_shape(type="line", x0=-10, y0=0, x1=10, y1=0, line=dict(color="black", width=1))
 
-    writer = pd.ExcelWriter('results.xlsx')
+    fig.update_layout(
+        title=f"RRG for {ticker}",
+        xaxis_title="RS-Ratio (Relative Strength)",
+        yaxis_title="RS-Momentum",
+        showlegend=False
+    )
 
-    results_industry.to_excel(writer, sheet_name='Industry')
-    results_macro.to_excel(writer, sheet_name='Macro')
+    return fig
 
-    writer.close()
+
+def main():
+    st.title("Dynamic Relative Rotation Graphs (RRG)")
+
+    st.sidebar.header("Settings")
+    equity_input = st.sidebar.text_area("Enter equity tickers (one per line):",
+                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO")
+    benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^CNX100")
+
+    equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
+
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365 * 2)
+
+    start_date = st.sidebar.date_input("Start Date", value=start_date)
+    end_date = st.sidebar.date_input("End Date", value=end_date)
+
+    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=13)
+
+    if start_date < end_date and equity and benchmark_index:
+        tickers = equity + [benchmark_index]
+        data = download_data(tickers, start_date, end_date)
+
+        rs_ratio, rs_momentum = calculate_rrg_components_improved(data[equity], data[benchmark_index])
+
+        normalized_rs_ratio = normalize_data(rs_ratio)
+        normalized_rs_momentum = normalize_data(rs_momentum)
+
+        cols = st.columns(2)
+        for i, ticker in enumerate(equity):
+            fig = create_rrg_plot(normalized_rs_ratio[ticker], normalized_rs_momentum[ticker], ticker, trail_length)
+            cols[i % 2].plotly_chart(fig, use_container_width=True)
+
+    else:
+        if start_date >= end_date:
+            st.error("Error: End date must be after start date.")
+        if not equity:
+            st.error("Error: Please enter at least one equity ticker.")
+        if not benchmark_index:
+            st.error("Error: Please enter a benchmark index ticker.")
+
+
+if __name__ == "__main__":
+    main()
