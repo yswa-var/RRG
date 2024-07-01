@@ -1,9 +1,16 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
+"""
+Author: Yashaswa Varshney
+Date: 1/7/24
+
+"""
+
+
+from datetime import datetime, timedelta
+
 import numpy as np
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import streamlit as st
+import yfinance as yf
 
 st.set_page_config(page_title="Dynamic RRG Graphs", layout="wide")
 
@@ -63,8 +70,8 @@ def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_l
         name=ticker
     ))
 
-    fig.add_shape(type="line", x0=0, y0=-10, x1=0, y1=10, line=dict(color="black", width=1))
-    fig.add_shape(type="line", x0=-10, y0=0, x1=10, y1=0, line=dict(color="black", width=1))
+    fig.add_shape(type="line", x0=0, y0=-6, x1=0, y1=6, line=dict(color="white", width=1))
+    fig.add_shape(type="line", x0=-6, y0=0, x1=6, y1=0, line=dict(color="white", width=1))
 
     fig.update_layout(
         title=f"RRG for {ticker}",
@@ -84,16 +91,30 @@ def main():
                                         value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO")
     benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^CNX100")
 
-    equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
-
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365 * 2)
 
     start_date = st.sidebar.date_input("Start Date", value=start_date)
     end_date = st.sidebar.date_input("End Date", value=end_date)
 
-    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=13)
+    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=6)
+    if st.sidebar.button("IT"):
+        equity_input = "TCS.NS\nINFY.NS\nHCLTECH.NS\nWIPRO.NS\nLTIM.NS\nTECHM.NS\nOFSS.NS\nPERSISTENT.NS\nMPHASIS.NS\nKPITTECH.NS\nCOFORGE.NS"
+        benchmark_index = "^CNXIT"
 
+    if st.sidebar.button("Banks"):
+        equity_input = "HDFCBANK.NS\nICICIBANK.NS\nSBIN.NS\nKOTAKBANK.NS\nAXISBANK.NS\nPNB.NS\nBANKBARODA.NS\nINDUSINDBK.NS\nIOB.BO\nINDIANB.NS\nYESBANK.NS"
+        benchmark_index = "^NSEBANK"
+
+    if st.sidebar.button("Auto"):
+        equity_input = "MARUTI.NS\nTATAMOTORS.NS\nM&M.NS\nBAJAJ-AUTO.NS\nEICHERMOT.NS\nTVSMOTOR.NS\nBOSCHLTD.NS\nHEROMOTOCO.NS\nMOTHERSON.BO\nTIINDIA.BO\nASHOKLEY.NS"
+        benchmark_index = "^CNXAUTO"
+
+    if st.sidebar.button("Energy"):
+        equity_input = "RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER.NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS"
+        benchmark_index = "^CNXENERGY"
+    equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
+    st.text(body="VS " + benchmark_index)
     if start_date < end_date and equity and benchmark_index:
         tickers = equity + [benchmark_index]
         data = download_data(tickers, start_date, end_date)
