@@ -88,8 +88,8 @@ def main():
 
     st.sidebar.header("Settings")
     equity_input = st.sidebar.text_area("Enter equity tickers (one per line):",
-                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO")
-    benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^CNX100")
+                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO\n^CNXPSUBANK\n^CNXFIN")
+    benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^NSEI")
 
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365 * 2)
@@ -113,6 +113,11 @@ def main():
     if st.sidebar.button("Energy"):
         equity_input = "RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER.NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS"
         benchmark_index = "^CNXENERGY"
+
+    # if st.sidebar.button("Energy"):
+    #     equity_input = "RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER.NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS"
+    #     benchmark_index = "^CNXENERGY"
+
     equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
     st.text(body="VS " + benchmark_index)
     if start_date < end_date and equity and benchmark_index:
