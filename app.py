@@ -88,7 +88,7 @@ def main():
 
     st.sidebar.header("Settings")
     equity_input = st.sidebar.text_area("Enter equity tickers (one per line):",
-                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO\n^CNXPSUBANK\n^CNXFIN")
+                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO\n^CNXPSUBANK")
     benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^NSEI")
 
     end_date = datetime.now()
@@ -97,7 +97,7 @@ def main():
     start_date = st.sidebar.date_input("Start Date", value=start_date)
     end_date = st.sidebar.date_input("End Date", value=end_date)
 
-    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=6)
+    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=3)
     if st.sidebar.button("IT"):
         equity_input = "TCS.NS\nINFY.NS\nHCLTECH.NS\nWIPRO.NS\nLTIM.NS\nTECHM.NS\nOFSS.NS\nPERSISTENT.NS\nMPHASIS.NS\nKPITTECH.NS\nCOFORGE.NS"
         benchmark_index = "^CNXIT"
@@ -114,9 +114,9 @@ def main():
         equity_input = "RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER.NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS"
         benchmark_index = "^CNXENERGY"
 
-    # if st.sidebar.button("Energy"):
-    #     equity_input = "RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER.NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS"
-    #     benchmark_index = "^CNXENERGY"
+    if st.sidebar.button("FMCG"):
+        equity_input = "HINDUNILVR.NS\nNESTLEIND.NS\nVBL.NS\nGODREJCP.NS\nBRITANNIA.NS\nDABUR.NS\nCOLPAL.NS\nPGHH.NS\nEMAMILTD.NS\nHATSUN.NS\nGILLETTE.NS\nJYOTHYLAB.NS\nBIKAJI.NS"
+        benchmark_index = "^CNXFMCG"
 
     equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
     st.text(body="VS " + benchmark_index)
