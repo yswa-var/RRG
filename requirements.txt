@@ -3,3 +3,5 @@ yfinance~=0.2.40
 plotly~=5.22.0
 numpy~=2.0.0
 streamlit~=1.36.0
+fyers_apiv3~=3.1.2
+python-dotenv~=1.0.1
