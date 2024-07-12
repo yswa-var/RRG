@@ -5,7 +5,7 @@ import webbrowser
 import pandas as pd
 from fyers_apiv3 import fyersModel
 
-from db.uploader import DatabaseManager
+from db.db_ops import DatabaseManager
 from settings import passes_instance as passwords
 from tqdm import tqdm
 
@@ -107,6 +107,4 @@ class DataDownloader:
 if __name__ == "__main__":
     db = DatabaseManager()
     downloader = DataDownloader(db=db)
-    data = downloader.download_all_data()
-    print(f"Downloaded data {data}")
-    print("done")
+    downloader.download_all_data()
