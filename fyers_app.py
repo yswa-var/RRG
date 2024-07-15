@@ -1,27 +1,24 @@
-"""
-Author: Yashaswa Varshney
-Date: 1/7/24
-
-"""
-
-from datetime import datetime, timedelta
-
+import streamlit as st
+import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import streamlit as st
-import yfinance as yf
+from datetime import datetime, timedelta
+
+# Assume these are imported from your existing codebase
+from db.db_ops import DatabaseManager
+from indexes import EquiWeightIndex
 
 st.set_page_config(page_title="Dynamic RRG Graphs", layout="wide")
 
 
-def calculate_rrg_components(data, benchmark):
-    rs_ratio = data.div(benchmark, axis=0) * 100
+def load_data(db):
+    idx = EquiWeightIndex(db)
+    index_data = idx.calculate_industry_indices()
+    return index_data
 
-    r12 = np.log(1 + data.pct_change(periods=252))
-    r1 = np.log(1 + data.pct_change(periods=21))
-    rs_momentum = r12 - r1
 
-    return rs_ratio, rs_momentum
+def load_tickers():
+    return pd.read_csv('tickers/nifty200.csv')
 
 
 def calculate_rrg_components_improved(data, benchmark, length=14):
@@ -47,8 +44,8 @@ def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_l
 
     # Plot trail
     fig.add_trace(go.Scatter(
-        x=normalized_rs_ratio.iloc[-trail_length * 5:],
-        y=normalized_rs_momentum.iloc[-trail_length * 5:],
+        x=normalized_rs_ratio.iloc[-trail_length:],
+        y=normalized_rs_momentum.iloc[-trail_length:],
         mode='lines',
         line=dict(width=1, color='rgb(247, 251, 255)')
     ))
@@ -59,6 +56,7 @@ def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_l
         y=[normalized_rs_momentum.iloc[-1]],
         mode='markers+text',
         marker=dict(size=10),
+        text=[ticker],
         textposition="top center",
         name=ticker
     ))
@@ -70,109 +68,81 @@ def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_l
         title=f"RRG for {ticker}",
         xaxis_title="RS-Ratio (Relative Strength)",
         yaxis_title="RS-Momentum",
-        showlegend=False
+        showlegend=False,
+        height=500,
+        width=700
     )
 
     return fig
 
 
-def process_data(trail_length, equity, benchmark_index, data):
-    rs_ratio, rs_momentum = calculate_rrg_components_improved(data[equity], data[benchmark_index])
+def process_data(trail_length, industries, benchmark, data):
+    rs_ratio, rs_momentum = calculate_rrg_components_improved(data[industries], data[benchmark])
 
     normalized_rs_ratio = normalize_data(rs_ratio)
     normalized_rs_momentum = normalize_data(rs_momentum)
 
     cols = st.columns(2)
-    for i, ticker in enumerate(equity):
-        fig = create_rrg_plot(normalized_rs_ratio[ticker], normalized_rs_momentum[ticker], ticker, trail_length)
+    for i, industry in enumerate(industries):
+        fig = create_rrg_plot(normalized_rs_ratio[industry], normalized_rs_momentum[industry], industry, trail_length)
         cols[i % 2].plotly_chart(fig, use_container_width=True)
-
-
-def create_equal_weighted_index(data):
-    # Calculate daily returns for each stock
-    returns = data.pct_change()
-
-    # Calculate the number of stocks
-    n_stocks = len(data.columns)
-
-    # Calculate the weight for each stock (equal weight)
-    weight = 1 / n_stocks
-
-    # Calculate the daily index returns
-    index_returns = (returns * weight).sum(axis=1)
-
-    # Calculate the cumulative index values, starting at 100
-    index_values = (1 + index_returns).cumprod() * 100
-
-    return index_values
 
 
 def main():
     st.title("Dynamic Relative Rotation Graphs (RRG)")
 
+    db = DatabaseManager()
+    if db.engine is None:
+        db.connect_to_database()
+
+    data = load_data(db)
+    tickers = load_tickers()
+
     st.sidebar.header("Settings")
-    equity_input = st.sidebar.text_area("Enter equity tickers (one per line):",
-                                        value="^NSEBANK\nNIFTY_FIN_SERVICE.NS\n^CNXENERGY\n^CNXFMCG\n^CNXAUTO\n"
-                                              "^CNXPSUBANK")
-    benchmark_index = st.sidebar.text_input("Enter benchmark index ticker:", value="^NSEI")
+
+    industries = st.sidebar.multiselect(
+        "Select industries",
+        options=data.columns[1:],  # Exclude the 'date' column
+        default=data.columns[1:6]  # Default to first 5 industries
+    )
+
+    benchmark = st.sidebar.selectbox(
+        "Select benchmark index",
+        options=data.columns[1:],  # Exclude the 'date' column
+        index=0  # Default to first industry
+    )
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365 * 2)
+    start_date = end_date - timedelta(days=365)
 
     start_date = st.sidebar.date_input("Start Date", value=start_date)
     end_date = st.sidebar.date_input("End Date", value=end_date)
 
-    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=3)
-    if st.sidebar.button("IT"):
-        equity_input = ("TCS.NS\nINFY.NS\nHCLTECH.NS\nWIPRO.NS\nLTIM.NS\nTECHM.NS\nOFSS.NS\nPERSISTENT.NS\nMPHASIS.NS"
-                        "\nKPITTECH.NS\nCOFORGE.NS")
-        benchmark_index = "^CNXIT"
+    trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=13)
 
-    if st.sidebar.button("Banks"):
-        equity_input = ("HDFCBANK.NS\nICICIBANK.NS\nSBIN.NS\nKOTAKBANK.NS\nAXISBANK.NS\nPNB.NS\nBANKBARODA.NS"
-                        "\nINDUSINDBK.NS\nIOB.BO\nINDIANB.NS\nYESBANK.NS")
-        benchmark_index = "^NSEBANK"
+    if start_date < end_date and industries and benchmark:
+        # Filter data based on date range
+        mask = (data['date'] >= start_date.strftime('%Y-%m-%d')) & (data['date'] <= end_date.strftime('%Y-%m-%d'))
+        filtered_data = data.loc[mask]
 
-    if st.sidebar.button("Auto"):
-        equity_input = ("MARUTI.NS\nTATAMOTORS.NS\nM&M.NS\nBAJAJ-AUTO.NS\nEICHERMOT.NS\nTVSMOTOR.NS\nBOSCHLTD.NS"
-                        "\nHEROMOTOCO.NS\nMOTHERSON.BO\nTIINDIA.BO\nASHOKLEY.NS")
-        benchmark_index = "^CNXAUTO"
-
-    if st.sidebar.button("Energy"):
-        equity_input = ("RELIANCE.NS\nONGC.NS\nNTPC.NS\nADANIGREEN.NS\nPOWERGRID.NS\nADANIPOWER.NS\nIOC.NS\nTATAPOWER"
-                        ".NS\nGAIL.NS\nBPCL.NS\nADANIENSOL.NS\nJSWENERGY.NS\nNHPC.NS")
-        benchmark_index = "^CNXENERGY"
-
-    if st.sidebar.button("FMCG"):
-        equity_input = ("HINDUNILVR.NS\nNESTLEIND.NS\nVBL.NS\nGODREJCP.NS\nBRITANNIA.NS\nDABUR.NS\nCOLPAL.NS\nPGHH.NS"
-                        "\nEMAMILTD.NS\nHATSUN.NS\nGILLETTE.NS\nJYOTHYLAB.NS\nBIKAJI.NS")
-        benchmark_index = "^CNXFMCG"
-
-    if st.sidebar.button("Global"):
-        equity_input = ("^GSPC\n^BUK100P\n^NSEI\n^GSPTSE\n^GDAXI\n399001.SZ\nSGC=F")
-        benchmark_index = "equi_weighted_index"
-
-    equity = [ticker.strip() for ticker in equity_input.split('\n') if ticker.strip()]
-    st.text(body="VS " + benchmark_index)
-
-    if benchmark_index == "equi_weighted_index":
-        tickers = equity
-        data = download_data(tickers, start_date, end_date)
-        data['equi_weighted_index'] = create_equal_weighted_index(data)
-        process_data(trail_length, equity, benchmark_index, data)
-
-    if start_date < end_date and equity and benchmark_index:
-        tickers = equity + [benchmark_index]
-        data = download_data(tickers, start_date, end_date)
-        process_data(trail_length, equity, benchmark_index, data)
+        process_data(trail_length, industries, benchmark, filtered_data)
 
     else:
         if start_date >= end_date:
             st.error("Error: End date must be after start date.")
-        if not equity:
-            st.error("Error: Please enter at least one equity ticker.")
-        if not benchmark_index:
-            st.error("Error: Please enter a benchmark index ticker.")
+        if not industries:
+            st.error("Error: Please select at least one industry.")
+        if not benchmark:
+            st.error("Error: Please select a benchmark index.")
+
+    # Display tickers for selected industries
+    if industries:
+        st.subheader("Stocks in Selected Industries")
+        for industry in industries:
+            st.write(f"**{industry}**")
+            industry_tickers = tickers[tickers['Industry'] == industry]['Symbol'].tolist()
+            st.write(", ".join(industry_tickers))
+            st.write("")
 
 
 if __name__ == "__main__":

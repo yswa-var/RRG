@@ -40,6 +40,9 @@ class DatabaseManager:
 
         self.engine = create_engine(
             f'postgresql+psycopg2://{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}/{self.PG_DATABASE}')
+        with self.engine.connect() as conn:
+            conn.execute(text('TRUNCATE TABLE ohlc_data'))
+            conn.commit()
 
         conn.close()
 
@@ -78,6 +81,8 @@ class DatabaseManager:
         """
         if self.engine is None:
             self.connect_to_database()
+
+
 
         # Prepare the data
         df['symbol'] = symbol
@@ -118,7 +123,7 @@ class DatabaseManager:
             SELECT *
             FROM ohlc_data
             WHERE symbol = :symbol
-            ORDER BY timestamp
+            ORDER BY timestamp;
         """)
 
         df = pd.read_sql_query(query, self.engine, params={'symbol': symbol})
