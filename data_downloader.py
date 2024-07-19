@@ -5,7 +5,7 @@ import webbrowser
 import pandas as pd
 from fyers_apiv3 import fyersModel
 
-from db.db_ops import DatabaseManager
+from db.db_ops_local import DatabaseManager
 from settings import passes_instance as passwords
 from tqdm import tqdm
 
@@ -95,6 +95,11 @@ class DataDownloader:
                     self.db.upload_dataframe(df, industry, symbol)
                     pbar.set_postfix({"Success": f"{successful_downloads}/{total_tickers}"})
                 pbar.update(1)
+            df = self.download_data(symbol='NSE:NIFTY500-INDEX', date_from=date_from, date_to=date_to)
+            if not df.empty:
+                successful_downloads += 1
+                self.db.upload_dataframe(df, industry='index', symbol='NIFTY500')
+                pbar.set_postfix({"Success": f"{successful_downloads}/{total_tickers}"})
 
         end_time = time.time()
         total_time = end_time - start_time
@@ -106,5 +111,6 @@ class DataDownloader:
 
 if __name__ == "__main__":
     db = DatabaseManager()
+    db.truncket_db()
     downloader = DataDownloader(db=db)
     downloader.download_all_data()

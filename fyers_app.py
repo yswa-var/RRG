@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # Assume these are imported from your existing codebase
-from db.db_ops import DatabaseManager
+from db.db_ops_local import DatabaseManager
 from indexes import EquiWeightIndex
 
 st.set_page_config(page_title="Dynamic RRG Graphs", layout="wide")
@@ -42,7 +42,6 @@ def normalize_data(data):
 def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_length):
     fig = go.Figure()
 
-    # Plot trail
     fig.add_trace(go.Scatter(
         x=normalized_rs_ratio.iloc[-trail_length:],
         y=normalized_rs_momentum.iloc[-trail_length:],
@@ -50,7 +49,6 @@ def create_rrg_plot(normalized_rs_ratio, normalized_rs_momentum, ticker, trail_l
         line=dict(width=1, color='rgb(247, 251, 255)')
     ))
 
-    # Plot current position
     fig.add_trace(go.Scatter(
         x=[normalized_rs_ratio.iloc[-1]],
         y=[normalized_rs_momentum.iloc[-1]],
@@ -88,6 +86,8 @@ def process_data(trail_length, industries, benchmark, data):
         cols[i % 2].plotly_chart(fig, use_container_width=True)
 
 
+
+
 def main():
     st.title("Dynamic Relative Rotation Graphs (RRG)")
 
@@ -98,21 +98,27 @@ def main():
     data = load_data(db)
     tickers = load_tickers()
 
+    data['date'] = pd.to_datetime(data['date'])
+
     st.sidebar.header("Settings")
 
     industries = st.sidebar.multiselect(
         "Select industries",
-        options=data.columns[1:],  # Exclude the 'date' column
-        default=data.columns[1:6]  # Default to first 5 industries
+        options=list(data.columns[1:]),
+        default=list(data.columns[1:])
     )
+
+    all_indexes_avg = data.iloc[:, 1:].mean(axis=1)
+    data['Average of All Indexes'] = all_indexes_avg
 
     benchmark = st.sidebar.selectbox(
         "Select benchmark index",
-        options=data.columns[1:],  # Exclude the 'date' column
-        index=0  # Default to first industry
+        options=['Average of All Indexes'] + list(data.columns[1:]),
+        index=0
     )
+    # fix the benchmark where industry='index', symbol='NIFTY500'
 
-    end_date = datetime.now()
+    end_date = data['date'].max().date()
     start_date = end_date - timedelta(days=365)
 
     start_date = st.sidebar.date_input("Start Date", value=start_date)
@@ -121,8 +127,7 @@ def main():
     trail_length = st.sidebar.slider("Trail Length (weeks)", min_value=1, max_value=52, value=13)
 
     if start_date < end_date and industries and benchmark:
-        # Filter data based on date range
-        mask = (data['date'] >= start_date.strftime('%Y-%m-%d')) & (data['date'] <= end_date.strftime('%Y-%m-%d'))
+        mask = (data['date'].dt.date >= start_date) & (data['date'].dt.date <= end_date)
         filtered_data = data.loc[mask]
 
         process_data(trail_length, industries, benchmark, filtered_data)
@@ -135,7 +140,6 @@ def main():
         if not benchmark:
             st.error("Error: Please select a benchmark index.")
 
-    # Display tickers for selected industries
     if industries:
         st.subheader("Stocks in Selected Industries")
         for industry in industries:
