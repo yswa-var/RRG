@@ -11,4 +11,4 @@ utils~=1.0.2
 python-dateutil~=2.9.0.post0
 psycopg2~=2.9.9
 tqdm~=4.66.4
-psycopg2
+psycopg2-binary
