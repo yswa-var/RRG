@@ -9,5 +9,4 @@ SQLAlchemy~=2.0.31
 pydantic~=2.8.2
 utils~=1.0.2
 python-dateutil~=2.9.0.post0
-psycopg2~=2.9.9
 tqdm~=4.66.4
