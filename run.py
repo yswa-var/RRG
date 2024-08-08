@@ -4,5 +4,5 @@ try:
 except ImportError:
     from streamlit import bootstrap
 
-real_script = 'app.py'
+real_script = 'main.py'
 bootstrap.run(real_script, f'run.py {real_script}', [], {})
