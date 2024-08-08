@@ -22,7 +22,7 @@ To get started with the RRG visualization tool, please follow the steps below:
 ## Usage
 Once the installation is complete, you can run the application using the following command:
 ```
-streamlit run app/app.py
+streamlit run main/app.py
 ```
 
 ## Visualization
