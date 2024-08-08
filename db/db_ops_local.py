@@ -12,18 +12,16 @@ class DatabaseManager:
     def __init__(self):
         self.PG_HOST = 'localhost'
         self.PG_USER = 'postgres'
-        self.PG_PASSWORD = '123456'
-        self.PG_PORT = '5454'
+        self.PG_PASSWORD = '12345'
         self.PG_DATABASE = 'nifty200'
         self.engine = None
 
     def connect_to_database(self):
         """
-        Connects to the PostgresSQL database and creates the engine.
+        Connects to the PostgreSQL database and creates the engine.
         """
         conn = psycopg2.connect(
             host=self.PG_HOST,
-            port=self.PG_PORT,
             user=self.PG_USER,
             password=self.PG_PASSWORD
         )
@@ -41,12 +39,17 @@ class DatabaseManager:
         cur.close()
 
         self.engine = create_engine(
-            f'postgresql+psycopg2://{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}:{self.PG_PORT}/{self.PG_DATABASE}')
+            f'postgresql+psycopg2://{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}/{self.PG_DATABASE}')
+        conn.close()
+    def truncket_db(self):
+        if self.engine is None:
+            self.connect_to_database()
+        if self.engine is None:
+            raise ValueError("Database engine is not initialized. Call 'connect_to_database' first.")
         with self.engine.connect() as conn:
             conn.execute(text('TRUNCATE TABLE ohlc_data'))
             conn.commit()
-
-        conn.close()
+            print("Table 'ohlc_data' truncated successfully.")
 
     def create_ohlc_table(self):
         """
