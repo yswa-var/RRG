@@ -16,7 +16,7 @@ st.set_page_config(page_title="Dynamic RRG Graphs", layout="wide")
 
 @st.cache_data
 def download_data(tickers, start_date, end_date):
-    data = yf.download(tickers, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'))['Adj Close']
+    data = yf.download(tickers, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'))['Close']
     return data
 
 
